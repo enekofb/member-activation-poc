@@ -23,9 +23,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executors;
@@ -61,6 +60,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  */
 @Slf4j
+@Value
 public class MemberActivationProducer {
 
     private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(1);
@@ -94,16 +94,29 @@ public class MemberActivationProducer {
      * @see {@link KinesisProducerConfiguration#setRecordTtl(long)}
      */
     private static final int RECORDS_PER_SECOND = 2000;
-    
-    /**
-     * Change this to your stream name.
-     */
-    public static final String STREAM_NAME = "activations-test";
-    
+
     /**
      * Change this to the region you are using.
      */
     public static final String REGION = "eu-west-1";
+
+
+    /**
+     * Change this to your stream name.
+     */
+    private final String streamName;
+
+    private final KinesisProducer producer;
+
+    private final UserRecordAdapter userRecordAdapter;
+
+
+    public MemberActivationProducer(String streamName){
+        this.streamName = streamName;
+        this.producer = getKinesisProducer();
+        this.userRecordAdapter = new UserRecordAdapter();
+    }
+
 
     /**
      * Here'll walk through some of the config options and create an instance of
@@ -111,7 +124,7 @@ public class MemberActivationProducer {
      * 
      * @return KinesisProducer instance used to put records.
      */
-    public KinesisProducer getKinesisProducer() {
+    private KinesisProducer getKinesisProducer() {
         // There are many configurable parameters in the KPL. See the javadocs
         // on each each set method for details.
         KinesisProducerConfiguration config = new KinesisProducerConfiguration();
@@ -173,99 +186,6 @@ public class MemberActivationProducer {
     }
 
 
-    public void publish() throws InterruptedException {
-        final KinesisProducer producer = getKinesisProducer();
-
-        // The monotonically increasing sequence number we will put in the data of each record
-        final AtomicLong sequenceNumber = new AtomicLong(0);
-
-        // The number of records that have finished (either successfully put, or failed)
-        final AtomicLong completed = new AtomicLong(0);
-
-        // KinesisProducer.addUserRecord is asynchronous. A callback can be used to receive the results.
-        final FutureCallback<UserRecordResult> callback = new FutureCallback<UserRecordResult>() {
-            @Override
-            public void onFailure(Throwable t) {
-                // We don't expect any failures during this sample. If it
-                // happens, we will log the first one and exit.
-                if (t instanceof UserRecordFailedException) {
-                    Attempt last = Iterables.getLast(
-                            ((UserRecordFailedException) t).getResult().getAttempts());
-                    log.error(String.format(
-                            "Record failed to put - %s : %s",
-                            last.getErrorCode(), last.getErrorMessage()));
-                }
-                log.error("Exception during put", t);
-                System.exit(1);
-            }
-
-            @Override
-            public void onSuccess(UserRecordResult result) {
-                completed.getAndIncrement();
-            }
-        };
-
-        // The lines within run() are the essence of the KPL API.
-        final Runnable putOneRecord = new Runnable() {
-            @Override
-            public void run() {
-                ByteBuffer data = Utils.generateData(sequenceNumber.get(), DATA_SIZE);
-                // TIMESTAMP is our partition key
-                ListenableFuture<UserRecordResult> f =
-                        producer.addUserRecord(STREAM_NAME, TIMESTAMP, Utils.randomExplicitHashKey(), data);
-                Futures.addCallback(f, callback);
-            }
-        };
-
-        // This gives us progress updates
-        EXECUTOR.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                long put = sequenceNumber.get();
-                long total = RECORDS_PER_SECOND * SECONDS_TO_RUN;
-                double putPercent = 100.0 * put / total;
-                long done = completed.get();
-                double donePercent = 100.0 * done / total;
-                log.info(String.format(
-                        "Put %d of %d so far (%.2f %%), %d have completed (%.2f %%)",
-                        put, total, putPercent, done, donePercent));
-            }
-        }, 1, 1, TimeUnit.SECONDS);
-
-        // Kick off the puts
-        log.info(String.format(
-                "Starting puts... will run for %d seconds at %d records per second",
-                SECONDS_TO_RUN, RECORDS_PER_SECOND));
-        executeAtTargetRate(EXECUTOR, putOneRecord, sequenceNumber, SECONDS_TO_RUN, RECORDS_PER_SECOND);
-
-        // Wait for puts to finish. After this statement returns, we have
-        // finished all calls to putRecord, but the records may still be
-        // in-flight. We will additionally wait for all records to actually
-        // finish later.
-        EXECUTOR.awaitTermination(SECONDS_TO_RUN + 1, TimeUnit.SECONDS);
-
-        // If you need to shutdown your application, call flushSync() first to
-        // send any buffered records. This method will block until all records
-        // have finished (either success or fail). There are also asynchronous
-        // flush methods available.
-        //
-        // Records are also automatically flushed by the KPL after a while based
-        // on the time limit set with Configuration.setRecordMaxBufferedTime()
-        log.info("Waiting for remaining puts to finish...");
-        producer.flushSync();
-        log.info("All records complete.");
-
-        // This kills the child process and shuts down the threads managing it.
-        producer.destroy();
-        log.info("Finished.");
-
-    }
-    
-//    public static void main(String[] args) throws Exception {
-//        publish();
-//
-//    }
-
     /**
      * Executes a function N times per second for M seconds with a
      * ScheduledExecutorService. The executor is shutdown at the end. This is
@@ -313,6 +233,118 @@ public class MemberActivationProducer {
             }
         }, 0, 1, TimeUnit.MILLISECONDS);
     }
-    
 
+
+    public boolean publish(MemberActivationEvent memberActivationEvent) throws InterruptedException {
+
+
+        // The monotonically increasing sequence number we will put in the data of each record
+        final AtomicLong sequenceNumber = new AtomicLong(0);
+
+        // The number of records that have finished (either successfully put, or failed)
+        final AtomicLong completed = new AtomicLong(0);
+
+        // KinesisProducer.addUserRecord is asynchronous. A callback can be used to receive the results.
+        final FutureCallback<UserRecordResult> callback = new FutureCallback<UserRecordResult>() {
+            @Override
+            public void onFailure(Throwable t) {
+                // We don't expect any failures during this sample. If it
+                // happens, we will log the first one and exit.
+                if (t instanceof UserRecordFailedException) {
+                    Attempt last = Iterables.getLast(
+                            ((UserRecordFailedException) t).getResult().getAttempts());
+                    log.error(String.format(
+                            "Record failed to put - %s : %s",
+                            last.getErrorCode(), last.getErrorMessage()));
+                }
+                log.error("Exception during put", t);
+                System.exit(1);
+            }
+
+            @Override
+            public void onSuccess(UserRecordResult result) {
+                completed.getAndIncrement();
+            }
+        };
+
+        UserRecord memberActivationEventAsUserRecord = toUserRecord(memberActivationEvent);
+
+        // The lines within run() are the essence of the KPL API.
+        final Runnable putOneRecord = new Runnable() {
+            @Override
+            public void run() {
+                ByteBuffer data = Utils.generateData(sequenceNumber.get(), DATA_SIZE);
+                // TIMESTAMP is our partition key
+
+                ListenableFuture<UserRecordResult> f =
+                        producer.addUserRecord(memberActivationEventAsUserRecord);
+                        producer.addUserRecord(streamName, TIMESTAMP, Utils.randomExplicitHashKey(), data);
+                Futures.addCallback(f, callback);
+            }
+        };
+
+        // This gives us progress updates
+        EXECUTOR.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                long put = sequenceNumber.get();
+                long total = RECORDS_PER_SECOND * SECONDS_TO_RUN;
+                double putPercent = 100.0 * put / total;
+                long done = completed.get();
+                double donePercent = 100.0 * done / total;
+                log.info(String.format(
+                        "Put %d of %d so far (%.2f %%), %d have completed (%.2f %%)",
+                        put, total, putPercent, done, donePercent));
+            }
+        }, 1, 1, TimeUnit.SECONDS);
+
+        // Kick off the puts
+        log.info(String.format(
+                "Starting puts... will run for %d seconds at %d records per second",
+                SECONDS_TO_RUN, RECORDS_PER_SECOND));
+        executeAtTargetRate(EXECUTOR, putOneRecord, sequenceNumber, SECONDS_TO_RUN, RECORDS_PER_SECOND);
+
+        // Wait for puts to finish. After this statement returns, we have
+        // finished all calls to putRecord, but the records may still be
+        // in-flight. We will additionally wait for all records to actually
+        // finish later.
+        EXECUTOR.awaitTermination(SECONDS_TO_RUN + 1, TimeUnit.SECONDS);
+
+        // If you need to shutdown your application, call flushSync() first to
+        // send any buffered records. This method will block until all records
+        // have finished (either success or fail). There are also asynchronous
+        // flush methods available.
+        //
+        // Records are also automatically flushed by the KPL after a while based
+        // on the time limit set with Configuration.setRecordMaxBufferedTime()
+        log.info("Waiting for remaining puts to finish...");
+        producer.flushSync();
+        log.info("All records complete.");
+
+        // This kills the child process and shuts down the threads managing it.
+        producer.destroy();
+        log.info("Finished.");
+        return false;
+    }
+
+    protected UserRecord toUserRecord(MemberActivationEvent memberActivationEvent) {
+        return userRecordAdapter.
+                fromMemberActivationEvent(memberActivationEvent);
+    }
+
+    private class UserRecordAdapter {
+
+        public UserRecord fromMemberActivationEvent(MemberActivationEvent memberActivationEvent){
+
+            String partitionKey = "1";
+            String randomExplicitHashKey = Utils.randomExplicitHashKey();
+
+            UserRecord memberActivationAsUserRecord = new UserRecord();
+            memberActivationAsUserRecord.setStreamName(getStreamName());
+            memberActivationAsUserRecord.setPartitionKey(partitionKey);
+            memberActivationAsUserRecord.setData(ByteBuffer.wrap(memberActivationEvent.toJsonAsBytes()));
+            memberActivationAsUserRecord.setExplicitHashKey(randomExplicitHashKey);
+            return memberActivationAsUserRecord;
+        }
+    }
 }

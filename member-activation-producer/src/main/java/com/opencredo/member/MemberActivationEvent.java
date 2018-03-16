@@ -1,5 +1,6 @@
 package com.opencredo.member;
 
+import com.amazonaws.services.kinesis.producer.sample.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
@@ -20,12 +21,6 @@ public class MemberActivationEvent {
         JSON.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    //TODO I should go to a userRecordAdapter
-    public String getPartitionKey() {
-
-        return "1";
-
-    }
 
     public byte[] toJsonAsBytes() {
         try {
@@ -34,7 +29,6 @@ public class MemberActivationEvent {
             return null;
         }
     }
-
 
 
 }
