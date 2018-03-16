@@ -16,11 +16,11 @@
 package com.opencredo.member;
 
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.services.kinesis.producer.*;
-import com.amazonaws.services.kinesis.producer.sample.SampleConsumer;
+import com.amazonaws.services.kinesis.producer.KinesisProducer;
+import com.amazonaws.services.kinesis.producer.KinesisProducerConfiguration;
+import com.amazonaws.services.kinesis.producer.UserRecord;
+import com.amazonaws.services.kinesis.producer.UserRecordResult;
 import com.amazonaws.services.kinesis.producer.sample.Utils;
-import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -29,36 +29,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * The Kinesis Producer Library (KPL) excels at handling large numbers of small
- * logical records by combining multiple logical records into a single Kinesis
- * record.
- * 
- * <p>
- * In this sample we'll be putting a monotonically increasing sequence number in
- * each logical record, and then padding the record to 128 bytes long. The
- * consumer will then check that all records are received correctly by verifying
- * that there are no gaps in the sequence numbers.
- * 
- * <p>
- * We will distribute the records evenly across all shards by using a random
- * explicit hash key.
- * 
- * <p>
- * To prevent the consumer from being confused by data from multiple runs of the
- * producer, each record also carries the time at which the producer started.
- * The consumer will reset its state whenever it detects a new, larger
- * timestamp. We will place the timestamp in the partition key. This does not
- * affect the random distribution of records across shards since we've set an
- * explicit hash key.
- * 
- * @see SampleConsumer
- * @author chaodeng
- *
- */
 @Slf4j
 @Value
 public class MemberActivationProducer {

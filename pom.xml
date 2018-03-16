@@ -9,6 +9,7 @@
 
     <modules>
         <module>member-activation-producer</module>
+        <module>member-activation-view-producer</module>
         <module>member-activation-consumer</module>
     </modules>
     <build>
@@ -42,6 +43,5 @@
             <version>2.15.0</version>
             <scope>test</scope>
         </dependency>
-
     </dependencies>
 </project>
