@@ -9,6 +9,7 @@
 
     <modules>
         <module>member-activation-producer</module>
+        <module>member-activation-consumer</module>
     </modules>
     <build>
         <plugins>
