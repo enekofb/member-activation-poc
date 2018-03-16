@@ -2,6 +2,8 @@ package com.opencredo.member;
 
 
 import com.amazonaws.services.kinesis.producer.UserRecord;
+import com.amazonaws.services.kinesis.producer.UserRecordResult;
+import com.google.common.util.concurrent.FutureCallback;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -26,9 +28,9 @@ public class MemberActivationProducerTest {
 
         MemberActivationEvent memberActivationEvent = createMemmberActivationEvent();
 
-        boolean published = memberActivationProducer.publish(memberActivationEvent);
+        UserRecordResult published = memberActivationProducer.publish(memberActivationEvent);
 
-        assertEquals(true, published);
+        assertEquals(true, published.isSuccessful());
 
     }
 
@@ -46,6 +48,8 @@ public class MemberActivationProducerTest {
         assertThat(userRecord.getData(),is(notNullValue()));
         assertThat(userRecord.getStreamName(),equalTo(memberActivationProducer.getStreamName()));
     }
+
+
 
 
 }
