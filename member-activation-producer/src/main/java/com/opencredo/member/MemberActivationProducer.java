@@ -261,10 +261,10 @@ public class MemberActivationProducer {
 
     }
     
-    public static void main(String[] args) throws Exception {
-        publish();
-
-    }
+//    public static void main(String[] args) throws Exception {
+//        publish();
+//
+//    }
 
     /**
      * Executes a function N times per second for M seconds with a
