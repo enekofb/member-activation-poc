@@ -22,7 +22,7 @@ public class MemberActivationEventTest {
 
         log.info("Activation date {}", activationDateTimeAsString);
 
-        return new MemberActivationEvent(activationDateTimeAsString);
+        return new MemberActivationEvent(activationDateTime);
 
     }
 
@@ -35,9 +35,9 @@ public class MemberActivationEventTest {
 
         log.info("Activation date {}", activationDateTimeAsString);
 
-        MemberActivationEvent memberActivationEvent = new MemberActivationEvent(activationDateTimeAsString);
+        MemberActivationEvent memberActivationEvent = new MemberActivationEvent(activationDateTime);
 
-        assertEquals(activationDateTimeAsString, memberActivationEvent.getActivationTimestamp());
+        assertEquals(activationDateTime, memberActivationEvent.getActivationTimestamp());
 
 
     }

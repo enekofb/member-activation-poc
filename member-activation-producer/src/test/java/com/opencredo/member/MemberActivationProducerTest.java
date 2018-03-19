@@ -38,7 +38,7 @@ public class MemberActivationProducerTest {
         LocalDateTime activationDateTime = LocalDateTime.now();
         String activationDateTimeAsString = activationDateTime.toString();
         log.info("Activation date {}",activationDateTimeAsString);
-        return new MemberActivationEvent(activationDateTimeAsString);
+        return new MemberActivationEvent(activationDateTime);
     }
 
     @Test
