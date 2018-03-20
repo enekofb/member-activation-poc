@@ -1,38 +1,42 @@
 # Member activation view producer
 
+Different approaches to explore to produce the view from events
 
-- Based on kinesis streams
-- Events stored in dynamodb
+1. KS + S3 + Athena
 
- 
-## Store events in dynamodb
+## S3 + Athena 
 
-Required
+1. Events are stored in a given s3 bucket (https://s3.console.aws.amazon.com/s3/buckets/gg-member-activations-tests)
 
-- A dynamodb table
-- From kinesis to dynamodb
+```
+{"activationTimestamp":"2018-03-16T12:50:12.875"}
+```
 
-### Create a dynamodb table to store member activation events
+2. You have a Athena Table created
 
-Table memberActivationsByActivationTime
+```
+CREATE EXTERNAL TABLE IF NOT EXISTS member_activations.member_activations (
+  `activationTimestamp` string 
+)
+ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+WITH SERDEPROPERTIES (
+  'serialization.format' = '1'
+) LOCATION 's3://XXX-bucket/2018/03/'
+TBLPROPERTIES ('has_encrypted_data'='false')
+``` 
 
-- Partition key 'activationTime' in following format YYYY-MM-DDTHH
-- Sort key activationTimestamp
+3. Run the query from Athena
 
-Created with ARN arn:aws:dynamodb:eu-west-1:307482651216:table/memberActivationsByActivationTime
+```
+SELECT * FROM "member_activations"."member_activations" limit 10;
+```
+- Using athena from [cli](https://sysadmins.co.za/using-the-aws-cli-tools-to-interact-with-amazons-athena-service/)
 
--- in common sandbox
+4. Settings up Tableau to connect Athena
 
-### From Kinesis to dynamodb
+- Know how the integration [works](https://www.tableau.com/about/blog/2017/5/connect-your-s3-data-amazon-athena-connector-tableau-103-71105)
+- Install the [driver](https://docs.aws.amazon.com/athena/latest/ug/connect-with-jdbc.html)
+- Open Tableau Desktop 10.5 and setup [Athena as Datasource](tableau-setup-athena.png)
 
-- Need a transformation in kinesis firehose to write in that table 
-
- 
-
-## Create view
-
-- A view is a query on dynamodb 
-
-
-
-
+*Note on setting up Athena* As for now, Tableau 10.5 does no support credentials coming from assumed roles so you need to 
+use non temp credentials. 
